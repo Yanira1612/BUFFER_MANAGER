@@ -1,6 +1,3 @@
-//
-//Autor: Yanira Suni 
-//
 #ifndef BUFFERPOOLMANAGER_H 
 #define BUFFERPOOLMANAGER_H
 #include "BufferPool.h"
@@ -24,8 +21,8 @@ public:
     Parametro: Identificador del bloque a solicitar.
     Retorna: Puntero al Frame que contiene la página solicitada.
     */
-    Frame* requestPage(int block_id) {
-        return buffer_pool->pinPage(block_id);
+    Frame* requestPage(int block_id,int policy) {
+        return buffer_pool->pinPage(block_id,policy);
     }
 
     /**
