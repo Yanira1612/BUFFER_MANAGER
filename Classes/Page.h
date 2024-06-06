@@ -1,6 +1,4 @@
-//
-// AUTOR: Alonso Chullunquia
-//
+
 #ifndef PAGE_H
 #define PAGE_H
 #include <chrono>
