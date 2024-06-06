@@ -1,4 +1,3 @@
-//Autor: Yanira Suni 
 #ifndef FRAME_H
 #define FRAME_H
 #include <iostream>
