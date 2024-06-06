@@ -1,6 +1,3 @@
-//
-// AUTOR: Yanira Suni & Alonso Chullunquia
-//
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -23,6 +20,10 @@ int main() {
     // inicializando mainFrame puntero a Frame para mostrar la página
     Frame* mainFrame;
 
+    int policy;
+                std::cout << "Ingrese el 1->LRU Y 2->MRU: ";
+                std::cin >> policy;
+
     // menú de acciones
     int option;
     do {
@@ -39,7 +40,7 @@ int main() {
                 int block_id;
                 std::cout << "Ingrese el block_id: ";
                 std::cin >> block_id;
-                mainFrame = buffer_manager.requestPage(block_id);
+                mainFrame = buffer_manager.requestPage(block_id,policy);
 
                 // si la página no se pudo cargar por falta de espacio
                 if(mainFrame == nullptr) {
