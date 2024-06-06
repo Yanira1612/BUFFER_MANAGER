@@ -1,6 +1,3 @@
-//
-// AUTOR: Yanira Suni & Alonso Chullunquia
-//
 #include "BufferPool.h"
 
 #include <iomanip>
@@ -30,8 +27,8 @@ Page* BufferPool::getPage(int page_id) {
 
 // evictPage() elige una página para reemplazarla en el buffer pool
 // y la elimina de la tabla de páginas sin no antes escribirla en disco si es necesario
-Frame* BufferPool::evictPage() {
-    Frame* victim = chooseVictimFrame();
+Frame* BufferPool::evictPage(int policy) {
+    Frame* victim = chooseVictimFrame(policy);
     if(victim == nullptr) {
         std::cerr<<("El BufferPool está lleno y no se puede cargar más páginas.\n");
         return nullptr;
@@ -47,6 +44,8 @@ Frame* BufferPool::evictPage() {
 }
 
 // chooseVictimFrame() elige la página a reemplazar en el buffer pool
+//LRU
+/*
 Frame* BufferPool::chooseVictimFrame() {
     // usando una función lambda para ordenar la lista de frames por last_used
     lru_queue.sort([](Frame* a, Frame* b) { return a->page->last_used < b->page->last_used; });
@@ -58,7 +57,27 @@ Frame* BufferPool::chooseVictimFrame() {
         }
     }
     return nullptr;
+}*/
+Frame* BufferPool::chooseVictimFrame(int policy) {
+    // usando una función lambda para ordenar la lista de frames por last_used en orden descendente
+    if (policy == LRU) {
+        // Ordenar por last_used en orden ascendente para LRU
+        lru_queue.sort([](Frame* a, Frame* b) { return a->page->last_used < b->page->last_used; });
+    } else if (policy == MRU) {
+        // Ordenar por last_used en orden descendente para MRU
+        lru_queue.sort([](Frame* a, Frame* b) { return a->page->last_used > b->page->last_used; });
+    }
+
+    for (auto it = lru_queue.begin(); it != lru_queue.end(); ++it) {
+        if ((*it)->page->pin_count == 0) {
+            Frame* victim = *it;
+            lru_queue.erase(it);
+            return victim;
+        }
+    }
+    return nullptr;
 }
+
 
 // actualiza la página en disco con la nueva información
 void BufferPool::writePageToDisk(Page* page) {
@@ -98,7 +117,7 @@ BufferPool::~BufferPool() {
 }
 
 // pinPage() busca una página y la fija, si no está en el buffer pool, la carga
-Frame* BufferPool::pinPage(int block_id) {
+Frame* BufferPool::pinPage(int block_id,int policy) {
     // compara si la página está en el buffer pool
     if (page_table.find(block_id) != page_table.end()) {
         Frame* frame = page_table[block_id];
@@ -107,7 +126,7 @@ Frame* BufferPool::pinPage(int block_id) {
         std::cout << "Pinned página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->page->pin_count << std::endl;
         return frame;
     } else {
-        return loadPage(block_id);
+        return loadPage(block_id,policy);
     }
 }
 
@@ -130,12 +149,12 @@ void BufferPool::unpinPage(int page_id, bool dirty ) {
 
 // carga una página en el buffer pool
 // con un page_id y un bloque de datos
-Frame* BufferPool::loadPage(int block_id) {
+Frame* BufferPool::loadPage(int block_id,int policy) {
     Frame* frame = getFreeFrame();
 
     // si no hay frames libres, se elige una página para reemplazar
     if (frame == nullptr) {
-        frame = evictPage();
+        frame = evictPage(policy);
     }
     if (frame == nullptr) {
         std::cout << "No hay frames disponibles para cargar la página " << block_id << std::endl;
