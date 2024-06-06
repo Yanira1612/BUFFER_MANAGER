@@ -1,7 +1,3 @@
-//
-// AUTOR: Yanira Suni & Alonso Chullunquia
-//
-
 #ifndef BUFFERPOOL_H
 #define BUFFERPOOL_H
 
@@ -15,6 +11,10 @@
 
 class BufferPool {
 private:
+
+    static const int LRU = 1;
+    static const int MRU = 2;
+
     int size; // Tamaño del buffer pool en número de frames
     std::vector<Frame*> frames; // Vector de frames
     std::unordered_map<int, Frame*> page_table; // Tabla de páginas para mapear page_id a frames
@@ -25,10 +25,10 @@ private:
 
     // evictPage() elige una página para reemplazarla en el buffer pool
     // y la elimina de la tabla de páginas sin no antes escribirla en disco si es necesario
-    Frame* evictPage() ;
+    Frame* evictPage(int policy) ;
 
     // chooseVictimFrame() elige la página a reemplazar en el buffer pool
-    Frame* chooseVictimFrame() ;
+    Frame* chooseVictimFrame(int policy) ;
 
     // actualiza la página en disco con la nueva información
    
@@ -46,14 +46,14 @@ public:
     void writePageToDisk(Page* page) ;
 
     // pinPage() busca una página y la fija, si no está en memoria la carga
-    Frame* pinPage(int block_id) ;
+    Frame* pinPage(int block_id,int policy) ;
 
     // remueve el Pin de la página y se puede marcar como sucia si dirty = true
     void unpinPage(int page_id, bool dirty = false) ;
 
     // carga una página en el buffer pool
     // con un page_id y un bloque de datos
-    Frame* loadPage(int block_id) ;
+    Frame* loadPage(int block_id,int policy) ;
 
     // obtiene la página con el page_id
     Page* getPage(int page_id);
