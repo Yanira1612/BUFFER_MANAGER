@@ -48,34 +48,68 @@ Frame* BufferPool::evictPage(int policy) {
 /*
 Frame* BufferPool::chooseVictimFrame() {
     // usando una función lambda para ordenar la lista de frames por last_used
-    lru_queue.sort([](Frame* a, Frame* b) { return a->page->last_used < b->page->last_used; });
-    for (auto it = lru_queue.begin(); it != lru_queue.end(); ++it) {
+    replacement_queue.sort([](Frame* a, Frame* b) { return a->page->last_used < b->page->last_used; });
+    for (auto it = replacement_queue.begin(); it != replacement_queue.end(); ++it) {
         if ((*it)->page->pin_count == 0) {
             Frame* victim = *it;
-            lru_queue.erase(it);
+            replacement_queue.erase(it);
             return victim;
         }
     }
     return nullptr;
 }*/
 Frame* BufferPool::chooseVictimFrame(int policy) {
+if (policy == CLOCK) {
+    while (true) {
+        Frame* frame = frames[clock_hand];
+
+        // Considerar solo frames que no están pinneados
+        if (frame->page && frame->page->pin_count == 0) {
+            if (frame->reference_bit) {
+                frame->reference_bit = false;
+            } else {
+                clock_hand = (clock_hand + 1) % size;
+                return frame;
+            }
+        }
+        
+        clock_hand = (clock_hand + 1) % size;
+
+                    if (clock_hand == 0) {
+                bool all_pinned = true;
+                for (const auto& f : frames) {
+                    if (f->page && f->page->pin_count == 0) {
+                        all_pinned = false;
+                        break;
+                    }
+                }
+                if (all_pinned) {
+                    return nullptr;
+                }
+            }
+    }    
+}
+
+else{
     // usando una función lambda para ordenar la lista de frames por last_used en orden descendente
     if (policy == LRU) {
         // Ordenar por last_used en orden ascendente para LRU
-        lru_queue.sort([](Frame* a, Frame* b) { return a->page->last_used < b->page->last_used; });
+        replacement_queue.sort([](Frame* a, Frame* b) { return a->page->last_used < b->page->last_used; });
     } else if (policy == MRU) {
         // Ordenar por last_used en orden descendente para MRU
-        lru_queue.sort([](Frame* a, Frame* b) { return a->page->last_used > b->page->last_used; });
+        replacement_queue.sort([](Frame* a, Frame* b) { return a->page->last_used > b->page->last_used; });
     }
 
-    for (auto it = lru_queue.begin(); it != lru_queue.end(); ++it) {
+    for (auto it = replacement_queue.begin(); it != replacement_queue.end(); ++it) {
         if ((*it)->page->pin_count == 0) {
             Frame* victim = *it;
-            lru_queue.erase(it);
+            replacement_queue.erase(it);
             return victim;
         }
     }
-    return nullptr;
+}
+
+return nullptr;
 }
 
 
@@ -103,9 +137,15 @@ std::time_t BufferPool::getCurrentTime() {
 // Alonso
 
 // Constructor de BufferPool
-BufferPool::BufferPool(int pool_size) : size(pool_size) {
+//BufferPool::BufferPool(int pool_size) : size(pool_size) {
+  //  for (int i = 0; i < size; ++i) {
+   //     frames.push_back(new Frame(i+1000));
+    //}
+//}
+
+BufferPool::BufferPool(int size) : size(size), clock_hand(0) {
     for (int i = 0; i < size; ++i) {
-        frames.push_back(new Frame(i+1000));
+        frames.push_back(new Frame(i));
     }
 }
 
@@ -123,6 +163,7 @@ Frame* BufferPool::pinPage(int block_id,int policy) {
         Frame* frame = page_table[block_id];
         frame->page->pin_count++;
         frame->page->last_used = getCurrentTime();
+        frame->reference_bit = true; // Set reference bit
         std::cout << "Pinned página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->page->pin_count << std::endl;
         return frame;
     } else {
@@ -142,7 +183,7 @@ void BufferPool::unpinPage(int page_id, bool dirty ) {
         frame->page->dirty = dirty;
         std::cout << "Unpinned página " << page_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->page->pin_count << ". Dirty: " << frame->page->dirty << std::endl;
         if (frame->page->pin_count == 0) {
-            lru_queue.push_back(frame);
+            replacement_queue.push_back(frame);
         }
     }
 }
@@ -165,12 +206,14 @@ Frame* BufferPool::loadPage(int block_id,int policy) {
     page_table[block_id] = frame;
     frame->page->pin_count = 1;
     frame->page->last_used = getCurrentTime();
+    frame->reference_bit = true; // Inicializa el bit de referencia
+    page_table[block_id] = frame;
     std::cout << "Se cargó la página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->page->pin_count << std::endl;
     return frame;
 }
 
 // imprime cada frame y el id de la página que contiene
-void BufferPool::showFrames() {
+void BufferPool::showFrames(int policy) {
     // imprime cada frame y el id de la página que contiene
     std::cout << "############################################\n";
     for (auto& frame : frames) {
@@ -182,10 +225,19 @@ void BufferPool::showFrames() {
             std::cout << "     Pin count: " ;
             std::cout << std::setw(4)<< frame->page->pin_count << "  ";
             std::cout << "Dirty: " ;
-            std::cout << std::setw(4)<< frame->page->dirty << std::endl;
+            if(policy==1||policy==2)
+            std::cout << std::setw(4)<< frame->page->dirty << std::endl;;
+            if(policy==3){
+            std::cout << "Dirty: " ;
+            std::cout << std::setw(4)<< frame->page->dirty << "  ";
+            std::cout << "Bit Reference: " ;
+            std::cout << std::setw(4)<< frame->reference_bit << std::endl;}
         } else {
             std::cout << std::setw(4)<< 'X'<< std::endl;
         }
     }
+    if(policy==3){
+    std::cout << "Clock hand: " ;
+    std::cout << std::setw(4)<< clock_hand << std::endl;}
     std::cout << "############################################\n";
 }
