@@ -14,11 +14,13 @@ private:
 
     static const int LRU = 1;
     static const int MRU = 2;
+    static const int CLOCK = 3;
 
     int size; // Tamaño del buffer pool en número de frames
     std::vector<Frame*> frames; // Vector de frames
     std::unordered_map<int, Frame*> page_table; // Tabla de páginas para mapear page_id a frames
-    std::list<Frame*> lru_queue; // Lista enlazada para el algoritmo LRU
+    std::list<Frame*> replacement_queue; // Lista enlazada para el algoritmo LRU
+    int clock_hand;
 
     // Obtiene un frame libre cuando el frame no tiene una página cargada en el puntero page
     Frame* getFreeFrame() ;
@@ -38,7 +40,9 @@ private:
 
 public:
     // Constructor de BufferPool
-    BufferPool(int buffer_pool_size) ;
+  //  BufferPool(int buffer_pool_size) ;
+
+    BufferPool(int size);
 
     // Destructor de BufferPool
     ~BufferPool() ;
@@ -59,7 +63,7 @@ public:
     Page* getPage(int page_id);
 
     // imprime cada frame y el id de la página que contiene
-    void showFrames() ;
+    void showFrames(int policy) ;
 
 };
 #endif //BUFFERPOOL_H
