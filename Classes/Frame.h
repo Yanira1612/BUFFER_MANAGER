@@ -1,3 +1,4 @@
+//Autor: Yanira Suni 
 #ifndef FRAME_H
 #define FRAME_H
 #include <iostream>
@@ -9,8 +10,9 @@ class Frame {
 public:
     int frame_id; //Identificador único del frame
     Page* page; //Puntero a la página almacenada en el frame
+    bool reference_bit;
 
-    Frame(int id) : frame_id(id), page(nullptr) {} //Constructor para inicializar un frame con un ID específico
+    Frame(int id) : frame_id(id), page(nullptr), reference_bit(false) {} //Constructor para inicializar un frame con un ID específico
 
     ~Frame() { //Destructor para liberar la memoria ocupada por la página
         delete page;
