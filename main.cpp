@@ -1,3 +1,6 @@
+//
+// AUTOR: Yanira Suni & Alonso Chullunquia
+//
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -21,7 +24,7 @@ int main() {
     Frame* mainFrame;
 
     int policy;
-                std::cout << "Ingrese el 1->LRU Y 2->MRU: ";
+                std::cout << "Ingrese la política de reemplazo (1->LRU, 2->MRU, 3->CLOCK): ";
                 std::cin >> policy;
 
     // menú de acciones
@@ -77,7 +80,7 @@ int main() {
 
             // mostrar páginas
             case 3:
-                buffer_manager.showFrames();
+                buffer_manager.showFrames(policy);
                 break;
             case 4:
                 std::cout << "Ingrese el page_id: ";
