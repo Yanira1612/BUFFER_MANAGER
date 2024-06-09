@@ -51,8 +51,8 @@ public:
 
 
     //Muestra la información de todos los frames en el BufferPool.
-    void showFrames() { 
-        buffer_pool->showFrames();
+    void showFrames(int policy) { 
+        buffer_pool->showFrames(policy);
     }
 };
 
