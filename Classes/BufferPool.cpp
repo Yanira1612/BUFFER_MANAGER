@@ -25,6 +25,15 @@ Page* BufferPool::getPage(int page_id) {
     }
 }
 
+Frame* BufferPool::getFrame(int page_id) {
+    if (page_table.find(page_id) != page_table.end()) {
+        return page_table[page_id];
+    } else {
+        std::cout << "El frame para la página " << page_id << " no está en el buffer pool." << std::endl;
+        return nullptr;
+    }
+}
+
 // evictPage() elige una página para reemplazarla en el buffer pool
 // y la elimina de la tabla de páginas sin no antes escribirla en disco si es necesario
 Frame* BufferPool::evictPage(int policy) {
@@ -33,7 +42,7 @@ Frame* BufferPool::evictPage(int policy) {
         std::cerr<<("El BufferPool está lleno y no se puede cargar más páginas.\n");
         return nullptr;
     }
-    if (victim->page->dirty) {
+    if (victim->dirty) {
         writePageToDisk(victim->page);
     }
 
@@ -64,7 +73,7 @@ if (policy == CLOCK) {
         Frame* frame = frames[clock_hand];
 
         // Considerar solo frames que no están pinneados
-        if (frame->page && frame->page->pin_count == 0) {
+        if (frame->page && frame->pin_count == 0) {
             if (frame->reference_bit) {
                 frame->reference_bit = false;
             } else {
@@ -78,7 +87,7 @@ if (policy == CLOCK) {
                     if (clock_hand == 0) {
                 bool all_pinned = true;
                 for (const auto& f : frames) {
-                    if (f->page && f->page->pin_count == 0) {
+                    if (f->page && f->pin_count == 0) {
                         all_pinned = false;
                         break;
                     }
@@ -94,14 +103,14 @@ else{
     // usando una función lambda para ordenar la lista de frames por last_used en orden descendente
     if (policy == LRU) {
         // Ordenar por last_used en orden ascendente para LRU
-        replacement_queue.sort([](Frame* a, Frame* b) { return a->page->last_used < b->page->last_used; });
+        replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used < b->last_used; });
     } else if (policy == MRU) {
         // Ordenar por last_used en orden descendente para MRU
-        replacement_queue.sort([](Frame* a, Frame* b) { return a->page->last_used > b->page->last_used; });
+        replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used > b->last_used; });
     }
 
     for (auto it = replacement_queue.begin(); it != replacement_queue.end(); ++it) {
-        if ((*it)->page->pin_count == 0) {
+        if ((*it)->pin_count == 0) {
             Frame* victim = *it;
             replacement_queue.erase(it);
             return victim;
@@ -124,7 +133,7 @@ void BufferPool::writePageToDisk(Page* page) {
         file << page->data;
         file.close();
     }
-    page->dirty = false; // Una vez escrita, la página ya no está sucia
+    getFrame(page->page_id)->dirty = false;// Una vez escrita, la página ya no está sucia
 }
 
 // obtiene la hora actual en formato std::time_t para last_used
@@ -161,10 +170,10 @@ Frame* BufferPool::pinPage(int block_id,int policy) {
     // compara si la página está en el buffer pool
     if (page_table.find(block_id) != page_table.end()) {
         Frame* frame = page_table[block_id];
-        frame->page->pin_count++;
-        frame->page->last_used = getCurrentTime();
+        frame->pin_count++;
+        frame->last_used = getCurrentTime();
         frame->reference_bit = true; // Set reference bit
-        std::cout << "Pinned página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->page->pin_count << std::endl;
+        std::cout << "Pinned página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << std::endl;
         return frame;
     } else {
         return loadPage(block_id,policy);
@@ -175,14 +184,14 @@ Frame* BufferPool::pinPage(int block_id,int policy) {
 void BufferPool::unpinPage(int page_id, bool dirty ) {
     if (page_table.find(page_id) != page_table.end()) {
         Frame* frame = page_table[page_id];
-        if(frame->page->pin_count > 0) {
-            frame->page->pin_count--;
+        if(frame->pin_count > 0) {
+            frame->pin_count--;
         }else {
             std::cout << "esta página ya está liberada" << std::endl;
         }
-        frame->page->dirty = dirty;
-        std::cout << "Unpinned página " << page_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->page->pin_count << ". Dirty: " << frame->page->dirty << std::endl;
-        if (frame->page->pin_count == 0) {
+        frame->dirty = dirty;
+        std::cout << "Unpinned página " << page_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << ". Dirty: " << frame->dirty << std::endl;
+        if (frame->pin_count == 0) {
             replacement_queue.push_back(frame);
         }
     }
@@ -204,11 +213,11 @@ Frame* BufferPool::loadPage(int block_id,int policy) {
     // se designa al frame la nueva página
     frame->page = new Page(block_id);
     page_table[block_id] = frame;
-    frame->page->pin_count = 1;
-    frame->page->last_used = getCurrentTime();
+    frame->pin_count = 1;
+    frame->last_used = getCurrentTime();
     frame->reference_bit = true; // Inicializa el bit de referencia
     page_table[block_id] = frame;
-    std::cout << "Se cargó la página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->page->pin_count << std::endl;
+    std::cout << "Se cargó la página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << std::endl;
     return frame;
 }
 
@@ -223,13 +232,13 @@ void BufferPool::showFrames(int policy) {
         if (frame->page != nullptr) {
             std::cout << std::setw(4)<< frame->page->page_id ;
             std::cout << "     Pin count: " ;
-            std::cout << std::setw(4)<< frame->page->pin_count << "  ";
+            std::cout << std::setw(4)<< frame->pin_count << "  ";
             std::cout << "Dirty: " ;
             if(policy==1||policy==2)
-            std::cout << std::setw(4)<< frame->page->dirty << std::endl;;
+            std::cout << std::setw(4)<< frame->dirty << std::endl;;
             if(policy==3){
             std::cout << "Dirty: " ;
-            std::cout << std::setw(4)<< frame->page->dirty << "  ";
+            std::cout << std::setw(4)<< frame->dirty << "  ";
             std::cout << "Bit Reference: " ;
             std::cout << std::setw(4)<< frame->reference_bit << std::endl;}
         } else {
