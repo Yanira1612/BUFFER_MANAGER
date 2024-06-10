@@ -6,6 +6,7 @@
 
 // Obtiene un frame libre cuando el frame no tiene una página cargada en el puntero page
 Frame* BufferPool::getFreeFrame() {
+    auto& frames = bufferPool->frames;
     for (auto& frame : frames) {
         if (frame->page == nullptr) {
             return frame;
@@ -17,6 +18,7 @@ Frame* BufferPool::getFreeFrame() {
 
 // obtiene la página con el page_id
 Page* BufferPool::getPage(int page_id) {
+    auto& page_table = bufferPool->page_table;
     if (page_table.find(page_id) != page_table.end()) {
         return page_table[page_id]->page;
     } else {
@@ -26,6 +28,7 @@ Page* BufferPool::getPage(int page_id) {
 }
 
 Frame* BufferPool::getFrame(int page_id) {
+    auto& page_table = bufferPool->page_table;
     if (page_table.find(page_id) != page_table.end()) {
         return page_table[page_id];
     } else {
@@ -37,6 +40,8 @@ Frame* BufferPool::getFrame(int page_id) {
 // evictPage() elige una página para reemplazarla en el buffer pool
 // y la elimina de la tabla de páginas sin no antes escribirla en disco si es necesario
 Frame* BufferPool::evictPage(int policy) {
+    auto& page_table = bufferPool->page_table;
+
     Frame* victim = chooseVictimFrame(policy);
     if(victim == nullptr) {
         std::cerr<<("El BufferPool está lleno y no se puede cargar más páginas.\n");
@@ -68,57 +73,62 @@ Frame* BufferPool::chooseVictimFrame() {
     return nullptr;
 }*/
 Frame* BufferPool::chooseVictimFrame(int policy) {
-if (policy == CLOCK) {
-    while (true) {
-        Frame* frame = frames[clock_hand];
+    auto& frames = bufferPool->frames;
+    int& clock_hand = bufferPool->clock_hand;
+    int size = bufferPool->size;
+    auto& replacement_queue = bufferPool->replacement_queue;
 
-        // Considerar solo frames que no están pinneados
-        if (frame->page && frame->pin_count == 0) {
-            if (frame->reference_bit) {
-                frame->reference_bit = false;
-            } else {
-                clock_hand = (clock_hand + 1) % size;
-                return frame;
+    if (policy == CLOCK) {
+        while (true) {
+            Frame* frame = frames[clock_hand];
+
+            // Considerar solo frames que no están pinneados
+            if (frame->page && frame->pin_count == 0) {
+                if (frame->reference_bit) {
+                    frame->reference_bit = false;
+                } else {
+                    clock_hand = (clock_hand + 1) % size;
+                    return frame;
+                }
             }
-        }
-        
-        clock_hand = (clock_hand + 1) % size;
 
-                    if (clock_hand == 0) {
-                bool all_pinned = true;
-                for (const auto& f : frames) {
-                    if (f->page && f->pin_count == 0) {
-                        all_pinned = false;
-                        break;
+            clock_hand = (clock_hand + 1) % size;
+
+                        if (clock_hand == 0) {
+                    bool all_pinned = true;
+                    for (const auto& f : frames) {
+                        if (f->page && f->pin_count == 0) {
+                            all_pinned = false;
+                            break;
+                        }
+                    }
+                    if (all_pinned) {
+                        return nullptr;
                     }
                 }
-                if (all_pinned) {
-                    return nullptr;
-                }
-            }
-    }    
-}
-
-else{
-    // usando una función lambda para ordenar la lista de frames por last_used en orden descendente
-    if (policy == LRU) {
-        // Ordenar por last_used en orden ascendente para LRU
-        replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used < b->last_used; });
-    } else if (policy == MRU) {
-        // Ordenar por last_used en orden descendente para MRU
-        replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used > b->last_used; });
-    }
-
-    for (auto it = replacement_queue.begin(); it != replacement_queue.end(); ++it) {
-        if ((*it)->pin_count == 0) {
-            Frame* victim = *it;
-            replacement_queue.erase(it);
-            return victim;
         }
     }
-}
 
-return nullptr;
+    else{
+        // usando una función lambda para ordenar la lista de frames por last_used en orden descendente
+        if (policy == LRU) {
+            // Ordenar por last_used en orden ascendente para LRU
+            replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used < b->last_used; });
+        } else if (policy == MRU) {
+            // Ordenar por last_used en orden descendente para MRU
+            replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used > b->last_used; });
+        }
+
+        for (auto it = replacement_queue.begin(); it != replacement_queue.end(); ++it) {
+            if ((*it)->pin_count == 0) {
+                Frame* victim = *it;
+                replacement_queue.erase(it);
+                return victim;
+            }
+        }
+    }
+
+    return nullptr;
 }
 
 
@@ -152,21 +162,21 @@ std::time_t BufferPool::getCurrentTime() {
     //}
 //}
 
-BufferPool::BufferPool(int size) : size(size), clock_hand(0) {
-    for (int i = 0; i < size; ++i) {
-        frames.push_back(new Frame(i));
-    }
+BufferPool::BufferPool(int size) {
+    auto bufferPool = new BufferPoolBase(size);
+    this->bufferPool = bufferPool;
+
 }
+
 
 // Destructor de BufferPool
 BufferPool::~BufferPool() {
-    for (auto& frame : frames) {
-        delete frame;
-    }
+    delete bufferPool;
 }
 
 // pinPage() busca una página y la fija, si no está en el buffer pool, la carga
 Frame* BufferPool::pinPage(int block_id,int policy) {
+    auto& page_table = bufferPool->page_table;
     // compara si la página está en el buffer pool
     if (page_table.find(block_id) != page_table.end()) {
         Frame* frame = page_table[block_id];
@@ -181,7 +191,9 @@ Frame* BufferPool::pinPage(int block_id,int policy) {
 }
 
 // remueve el Pin de la página y se puede marcar como sucia si dirty = true
-void BufferPool::unpinPage(int page_id, bool dirty ) {
+void BufferPool::unpinPage(int page_id, int policy,  bool dirty ) {
+    auto page_table = bufferPool->page_table;
+    auto& replacement_queue = bufferPool->replacement_queue;
     if (page_table.find(page_id) != page_table.end()) {
         Frame* frame = page_table[page_id];
         if(frame->pin_count > 0) {
@@ -193,6 +205,13 @@ void BufferPool::unpinPage(int page_id, bool dirty ) {
         std::cout << "Unpinned página " << page_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << ". Dirty: " << frame->dirty << std::endl;
         if (frame->pin_count == 0) {
             replacement_queue.push_back(frame);
+            if (policy == LRU) {
+                // Ordenar por last_used en orden ascendente para LRU
+                replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used < b->last_used; });
+            } else if (policy == MRU) {
+                // Ordenar por last_used en orden descendente para MRU
+                replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used > b->last_used; });
+            }
         }
     }
 }
@@ -200,6 +219,7 @@ void BufferPool::unpinPage(int page_id, bool dirty ) {
 // carga una página en el buffer pool
 // con un page_id y un bloque de datos
 Frame* BufferPool::loadPage(int block_id,int policy) {
+    auto& page_table = bufferPool->page_table;
     Frame* frame = getFreeFrame();
 
     // si no hay frames libres, se elige una página para reemplazar
@@ -223,6 +243,8 @@ Frame* BufferPool::loadPage(int block_id,int policy) {
 
 // imprime cada frame y el id de la página que contiene
 void BufferPool::showFrames(int policy) {
+    auto frames = bufferPool->frames;
+    int clock_hand = bufferPool->clock_hand;
     // imprime cada frame y el id de la página que contiene
     std::cout << "############################################\n";
     for (auto& frame : frames) {
@@ -234,11 +256,20 @@ void BufferPool::showFrames(int policy) {
             std::cout << "     Pin count: " ;
             std::cout << std::setw(4)<< frame->pin_count << "  ";
             std::cout << "Dirty: " ;
-            if(policy==1||policy==2)
-            std::cout << std::setw(4)<< frame->dirty << std::endl;;
-            if(policy==3){
-            std::cout << "Dirty: " ;
             std::cout << std::setw(4)<< frame->dirty << "  ";
+            if(policy==1||policy==2){
+                std::cout << "Last Used: " ;
+                auto replacement_queue = bufferPool->replacement_queue;
+                int pos = 0;
+                for(auto it = replacement_queue.begin(); it != replacement_queue.end(); ++it, ++pos){
+                    if((*it)->frame_id == frame->frame_id){
+                        std::cout << std::setw(4) << pos+1 ;
+                        break;
+                    }
+                }
+                std::cout << std::endl;
+            }
+            if(policy==3){
             std::cout << "Bit Reference: " ;
             std::cout << std::setw(4)<< frame->reference_bit << std::endl;}
         } else {

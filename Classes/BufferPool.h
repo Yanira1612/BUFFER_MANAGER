@@ -9,6 +9,8 @@
 #include <list>
 #include <ctime>
 
+#include "BufferPoolBase.h"
+
 class BufferPool {
 private:
 
@@ -16,11 +18,8 @@ private:
     static const int MRU = 2;
     static const int CLOCK = 3;
 
-    int size; // Tamaño del buffer pool en número de frames
-    std::vector<Frame*> frames; // Vector de frames
-    std::unordered_map<int, Frame*> page_table; // Tabla de páginas para mapear page_id a frames
-    std::list<Frame*> replacement_queue; // Lista enlazada para el algoritmo LRU
-    int clock_hand;
+
+    BufferPoolBase* bufferPool;
 
     // Obtiene un frame libre cuando el frame no tiene una página cargada en el puntero page
     Frame* getFreeFrame() ;
@@ -53,7 +52,7 @@ public:
     Frame* pinPage(int block_id,int policy) ;
 
     // remueve el Pin de la página y se puede marcar como sucia si dirty = true
-    void unpinPage(int page_id, bool dirty = false) ;
+    void unpinPage(int page_id, int policy, bool dirty = false) ;
 
     // carga una página en el buffer pool
     // con un page_id y un bloque de datos
@@ -66,6 +65,18 @@ public:
 
     // imprime cada frame y el id de la página que contiene
     void showFrames(int policy) ;
+
+    // guardar la página
+    void savePage(int page_id) {
+        Page* pageNew = getPage(page_id);
+        if(getFrame(page_id)->dirty==true){
+            writePageToDisk(pageNew);
+        }
+        else{
+            std::cout << "La pagina no ha sido modificada" << std::endl;
+        }
+
+    }
 
 };
 #endif //BUFFERPOOL_H

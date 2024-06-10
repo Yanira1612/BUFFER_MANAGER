@@ -15,7 +15,7 @@
 
 int main() {
     // inicializando buffer manager
-    BufferManager buffer_manager(3);
+    BufferPool buffer_manager(3);
 
     // inicializando mainFrame puntero a Frame para mostrar la página
     Frame* mainFrame;
@@ -40,7 +40,7 @@ int main() {
                 int block_id;
                 std::cout << "Ingrese el block_id: ";
                 std::cin >> block_id;
-                mainFrame = buffer_manager.requestPage(block_id,policy);
+                mainFrame = buffer_manager.pinPage(block_id,policy); // solicita una página
 
                 // si la página no se pudo cargar por falta de espacio
                 if(mainFrame == nullptr) {
@@ -73,9 +73,9 @@ int main() {
                 std::cout << "Ingrese el page_id: ";
                 std::cin >> page_id;
                 if(buffer_manager.getFrame(page_id))
-                buffer_manager.releasePage(page_id,buffer_manager.getFrame(page_id)->dirty);
+                buffer_manager.unpinPage(page_id,policy,buffer_manager.getFrame(page_id)->dirty);
                 else
-                buffer_manager.releasePage(page_id,false);
+                buffer_manager.unpinPage(page_id,policy,false);
                 break;
 
             // mostrar páginas
