@@ -1,6 +1,3 @@
-//
-// AUTOR: Yanira Suni & Alonso Chullunquia
-//
 #include <iostream>
 #include <vector>
 #include <unordered_map>
@@ -50,7 +47,7 @@ int main() {
                     std::cout << "No se pudo cargar la página\n";
                     break;
                 }
-                if(mainFrame->page->dirty==false){
+                if(mainFrame->dirty==false){
                 mainFrame->showPage();
                 // modificar la data
                 std::cout << "desea modificar la data? (1: si, 0: no): ";
@@ -63,7 +60,7 @@ int main() {
                     std::cin.ignore();
                     std::getline(std::cin, data);
                     mainFrame->page->data = data;
-                    mainFrame->page->dirty = true;
+                    mainFrame->dirty = true;
                 }}
                 else{
                     std::cout<<"No se puede solicitar la pagina"<<std::endl;
@@ -75,7 +72,10 @@ int main() {
                 int page_id;
                 std::cout << "Ingrese el page_id: ";
                 std::cin >> page_id;
-                buffer_manager.releasePage(page_id,buffer_manager.getPage(page_id)->dirty);
+                if(buffer_manager.getFrame(page_id))
+                buffer_manager.releasePage(page_id,buffer_manager.getFrame(page_id)->dirty);
+                else
+                buffer_manager.releasePage(page_id,false);
                 break;
 
             // mostrar páginas
