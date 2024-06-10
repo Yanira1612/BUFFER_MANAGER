@@ -62,6 +62,8 @@ public:
     // obtiene la página con el page_id
     Page* getPage(int page_id);
 
+    Frame* getFrame(int page_id);
+
     // imprime cada frame y el id de la página que contiene
     void showFrames(int policy) ;
 
