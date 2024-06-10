@@ -38,9 +38,13 @@ public:
         return buffer_pool->getPage(page_id);
     }
 
+    Frame* getFrame(int page_id) {
+        return buffer_pool->getFrame(page_id);
+    }
+
     void savePage(int page_id) {
         Page* pageNew = getPage(page_id);
-        if(pageNew->dirty==true){
+        if(getFrame(page_id)->dirty==true){
             buffer_pool->writePageToDisk(pageNew);
         }
         else{
