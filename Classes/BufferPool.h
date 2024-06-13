@@ -1,13 +1,12 @@
 #ifndef BUFFERPOOL_H
 #define BUFFERPOOL_H
 
-// Clase BufferPool
-#include "Frame.h"
-#include "Page.h"
 #include <vector>
 #include <unordered_map>
 #include <list>
 #include <ctime>
+#include "Frame.h"
+
 
 class BufferPool {
 private:
@@ -21,49 +20,50 @@ private:
     std::unordered_map<int, Frame*> page_table; // Tabla de páginas para mapear page_id a frames
     std::list<Frame*> replacement_queue; // Lista enlazada para el algoritmo LRU
     int clock_hand;
-
-    // Obtiene un frame libre cuando el frame no tiene una página cargada en el puntero page
-    Frame* getFreeFrame() ;
-
-    // evictPage() elige una página para reemplazarla en el buffer pool
-    // y la elimina de la tabla de páginas sin no antes escribirla en disco si es necesario
-    Frame* evictPage(int policy) ;
-
-    // chooseVictimFrame() elige la página a reemplazar en el buffer pool
-    Frame* chooseVictimFrame(int policy) ;
-
-    // actualiza la página en disco con la nueva información
-   
-
-    // obtiene la hora actual en formato std::time_t para last_used
-    std::time_t getCurrentTime() ;
-
+    friend class BufferManager;
 public:
-    // Constructor de BufferPool
-  //  BufferPool(int buffer_pool_size) ;
-
-    BufferPool(int size);
+    BufferPool(int size, const std::vector<Frame *> &frames, const std::unordered_map<int, Frame *> &page_table,
+        const std::list<Frame *> &replacement_queue, int clock_hand)
+        : size(size),
+          frames(frames),
+          page_table(page_table),
+          replacement_queue(replacement_queue),
+          clock_hand(clock_hand) {
+    }
+    BufferPool(int size) : size(size), clock_hand(0) {
+        for (int i = 0; i < size; ++i) {
+            frames.push_back(new Frame(i));
+        }
+    }
 
     // Destructor de BufferPool
-    ~BufferPool() ;
+    ~BufferPool() {
+        for (auto& frame : frames) {
+            delete frame;
+        }
+    }
 
-    void writePageToDisk(Page* page) ;
+    int getSize() const;
 
-    // pinPage() busca una página y la fija, si no está en memoria la carga
-    Frame* pinPage(int block_id,int policy) ;
+    void setSize(int size);
 
-    // remueve el Pin de la página y se puede marcar como sucia si dirty = true
-    void unpinPage(int page_id, bool dirty = false) ;
+    std::vector<Frame *> getFrames() const;
 
-    // carga una página en el buffer pool
-    // con un page_id y un bloque de datos
-    Frame* loadPage(int block_id,int policy) ;
+    void setFrames(const std::vector<Frame *> &frames);
 
-    // obtiene la página con el page_id
-    Page* getPage(int page_id);
+    std::unordered_map<int, Frame *> getPageTable() const;
 
-    // imprime cada frame y el id de la página que contiene
-    void showFrames(int policy) ;
+    void sePageTable(const std::unordered_map<int, Frame *> &page_table);
 
+    std::list<Frame *> getReplacementQueue() const;
+
+    void setReplacementQueue(const std::list<Frame *> &replacement_queue);
+
+    int getClockHand() const;
+
+    void setClockHand(int clock_hand);
 };
+
+
+
 #endif //BUFFERPOOL_H
