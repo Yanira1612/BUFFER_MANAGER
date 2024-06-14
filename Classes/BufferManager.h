@@ -18,6 +18,7 @@ private:
     static const int MRU = 2;
     static const int CLOCK = 3;
 
+    int globalCounter = 0;
 
     BufferPool* bufferManager;
 

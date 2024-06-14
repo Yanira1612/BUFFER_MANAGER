@@ -118,10 +118,10 @@ Frame* BufferManager::chooseVictimFrame(int policy) {
         // usando una función lambda para ordenar la lista de frames por last_used en orden descendente
         if (policy == LRU) {
             // Ordenar por last_used en orden ascendente para LRU
-            replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used < b->last_used; });
+            replacement_queue.sort([](Frame* a, Frame* b) { return a->counter < b->counter; });
         } else if (policy == MRU) {
             // Ordenar por last_used en orden descendente para MRU
-            replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used > b->last_used; });
+            replacement_queue.sort([](Frame* a, Frame* b) { return a->counter > b->counter; });
         }
 
         for (auto it = replacement_queue.begin(); it != replacement_queue.end(); ++it) {
@@ -187,6 +187,8 @@ Frame* BufferManager::pinPage(int block_id,int policy) {
         Frame* frame = page_table[block_id];
         frame->pin_count++;
         frame->last_used = getCurrentTime();
+        frame->counter = globalCounter;
+        globalCounter++;
         frame->reference_bit = true; // Set reference bit
         std::cout << "Pinned página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << std::endl;
         return frame;
@@ -213,10 +215,10 @@ void BufferManager::unpinPage(int page_id, int policy,  bool dirty ) {
             replacement_queue.push_back(frame);
             if (policy == LRU) {
                 // Ordenar por last_used en orden ascendente para LRU
-                replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used < b->last_used; });
+                replacement_queue.sort([](Frame* a, Frame* b) { return a->counter < b->counter; });
             } else if (policy == MRU) {
                 // Ordenar por last_used en orden descendente para MRU
-                replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used > b->last_used; });
+                replacement_queue.sort([](Frame* a, Frame* b) { return a->counter > b->counter; });
             }
         }
     }
@@ -241,6 +243,8 @@ Frame* BufferManager::loadPage(int block_id,int policy) {
     page_table[block_id] = frame;
     frame->pin_count = 1;
     frame->last_used = getCurrentTime();
+    frame->counter = globalCounter;
+    globalCounter++;
     frame->reference_bit = true; // Inicializa el bit de referencia
     page_table[block_id] = frame;
     std::cout << "Se cargó la página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << std::endl;
@@ -294,7 +298,7 @@ bool BufferManager::unpinned(int page_id) {
         if(frame->pinned==true)
         frame->pinned=false;
         else
-        std::cout<<"No esta pinneada no pi}uede realizar unpinned"<<std::endl;
+        std::cout<<"No esta pinneada no puede realizar unpinned"<<std::endl;
     }
     return false;
 }
@@ -330,7 +334,7 @@ void BufferManager::showFrames(int policy) {
             std::cout << "Pinned: " ;
             std::cout << std::setw(4)<< frame->pinned << "  ";
             if(policy==1||policy==2){
-                std::cout << "Last Used: " ;
+                std::cout << "RProiority: " ;
                 auto replacement_queue = bufferManager->replacement_queue;
                 int pos = 0;
                 for(auto it = replacement_queue.begin(); it != replacement_queue.end(); ++it, ++pos){

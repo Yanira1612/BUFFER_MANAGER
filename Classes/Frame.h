@@ -15,11 +15,16 @@ public:
     bool pinned;           // indica si la pagina esta pinneada o no
     int pin_count;         // contador de fijaciones de la página
     std::time_t last_used; // hora de la última fijación para LRU
+    int counter;
 
     Frame(int id) : frame_id(id), page(nullptr), reference_bit(false) , pinned(false) {
         dirty = false;
         pin_count = 0;
-        last_used = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());} //Constructor para inicializar un frame con un ID específico
+        last_used = std::chrono::system_clock::to_time_t(std::chrono::system_clock::now());
+        counter = 0;
+
+    } //Constructor para inicializar un frame con un ID específico
+
 
     ~Frame() { //Destructor para liberar la memoria ocupada por la página
         delete page;
