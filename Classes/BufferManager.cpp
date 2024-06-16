@@ -3,12 +3,13 @@
 #include <iomanip>
 #include <fstream>
 #include <iostream>
+#include <unistd.h>
 
 // Yanira
 
 // Obtiene un frame libre cuando el frame no tiene una página cargada en el puntero page
 Frame* BufferManager::getFreeFrame() {
-    auto& frames = bufferManager->frames;
+    auto& frames = bufferPool->frames;
     for (auto& frame : frames) {
         if (frame->page == nullptr) {
             return frame;
@@ -20,7 +21,7 @@ Frame* BufferManager::getFreeFrame() {
 
 // obtiene la página con el page_id
 Page* BufferManager::getPage(int page_id) {
-    auto& page_table = bufferManager->page_table;
+    auto& page_table = bufferPool->page_table;
     if (page_table.find(page_id) != page_table.end()) {
         return page_table[page_id]->page;
     } else {
@@ -30,7 +31,7 @@ Page* BufferManager::getPage(int page_id) {
 }
 
 Frame* BufferManager::getFrame(int page_id) {
-    auto& page_table = bufferManager->page_table;
+    auto& page_table = bufferPool->page_table;
     if (page_table.find(page_id) != page_table.end()) {
         return page_table[page_id];
     } else {
@@ -42,7 +43,7 @@ Frame* BufferManager::getFrame(int page_id) {
 // evictPage() elige una página para reemplazarla en el buffer pool
 // y la elimina de la tabla de páginas sin no antes escribirla en disco si es necesario
 Frame* BufferManager::evictPage(int policy) {
-    auto& page_table = bufferManager->page_table;
+    auto& page_table = bufferPool->page_table;
 
     Frame* victim = chooseVictimFrame(policy);
     if(victim == nullptr) {
@@ -78,10 +79,10 @@ Frame* BufferPool::chooseVictimFrame() {
     return nullptr;
 }*/
 Frame* BufferManager::chooseVictimFrame(int policy) {
-    auto& frames = bufferManager->frames;
-    int& clock_hand = bufferManager->clock_hand;
-    int size = bufferManager->size;
-    auto& replacement_queue = bufferManager->replacement_queue;
+    auto& frames = bufferPool->frames;
+    int& clock_hand = bufferPool->clock_hand;
+    int size = bufferPool->size;
+    auto& replacement_queue = bufferPool->replacement_queue;
 
     if (policy == CLOCK) {
         while (true) {
@@ -99,10 +100,17 @@ Frame* BufferManager::chooseVictimFrame(int policy) {
 
             clock_hand = (clock_hand + 1) % size;
 
-                        if (clock_hand == 0) {
+            if (clock_hand == 0) {
                     bool all_pinned = true;
                     for (const auto& f : frames) {
                         if (f->page && f->pin_count == 0 && frame->pinned == false) {
+                            all_pinned = false;
+                            if (frame->reference_bit) {
+                                frame->reference_bit = false;
+                            } else {
+                                clock_hand = (clock_hand + 1) % size;
+                                return frame;
+                            }
                             all_pinned = false;
                             break;
                         }
@@ -110,7 +118,7 @@ Frame* BufferManager::chooseVictimFrame(int policy) {
                     if (all_pinned) {
                         return nullptr;
                     }
-                }
+            }
         }
     }
 
@@ -169,19 +177,19 @@ std::time_t BufferManager::getCurrentTime() {
 
 BufferManager::BufferManager(int size) {
     auto bufferManager = new BufferPool(size);
-    this->bufferManager= bufferManager;
+    this->bufferPool= bufferManager;
 
 }
 
 
 // Destructor de BufferPool
 BufferManager::~BufferManager() {
-    delete bufferManager;
+    delete bufferPool;
 }
 
 // pinPage() busca una página y la fija, si no está en el buffer pool, la carga
 Frame* BufferManager::pinPage(int block_id,int policy) {
-    auto& page_table = bufferManager->page_table;
+    auto& page_table = bufferPool->page_table;
     // compara si la página está en el buffer pool
     if (page_table.find(block_id) != page_table.end()) {
         Frame* frame = page_table[block_id];
@@ -200,8 +208,8 @@ Frame* BufferManager::pinPage(int block_id,int policy) {
 
 // remueve el Pin de la página y se puede marcar como sucia si dirty = true
 void BufferManager::unpinPage(int page_id, int policy,  bool dirty ) {
-    auto page_table = bufferManager->page_table;
-    auto& replacement_queue = bufferManager->replacement_queue;
+    auto page_table = bufferPool->page_table;
+    auto& replacement_queue = bufferPool->replacement_queue;
     if (page_table.find(page_id) != page_table.end()) {
         Frame* frame = page_table[page_id];
         if(frame->pin_count > 0) {
@@ -227,7 +235,7 @@ void BufferManager::unpinPage(int page_id, int policy,  bool dirty ) {
 // carga una página en el buffer pool
 // con un page_id y un bloque de datos
 Frame* BufferManager::loadPage(int block_id,int policy) {
-    auto& page_table = bufferManager->page_table;
+    auto& page_table = bufferPool->page_table;
     Frame* frame = getFreeFrame();
 
     // si no hay frames libres, se elige una página para reemplazar
@@ -261,14 +269,14 @@ Frame* BufferManager::requestPage(int block_id,int policy) {
             return nullptr;
         }
         if (mainFrame->dirty == false) {
-            mainFrame->showPage();
+            // mainFrame->showPage();
             // modificar la data
-            std::cout << "Desea modificar la data? (1: si, 0: no): ";
+            // std::cout << "Desea modificar la data? (1: si, 0: no): ";
             int mod;
             std::cin >> mod;
             if (mod == 1) {
                 std::string data;
-                std::cout << "Ingrese la nueva data: ";
+                // std::cout << "Ingrese la nueva data: ";
                 // cin de línea entera
                 std::cin.ignore();
                 std::getline(std::cin, data);
@@ -276,10 +284,10 @@ Frame* BufferManager::requestPage(int block_id,int policy) {
                 mainFrame->dirty = true;
             }
             else{
-                std::cout << "Data: \n" << mainFrame->page->data << std::endl;
+                // std::cout << "Data: \n" << mainFrame->page->data << std::endl;
             }
         } else {
-            std::cout << "No se puede solicitar la página" << std::endl;
+            // std::cout << "No se puede solicitar la página" << std::endl;
         }
         return mainFrame;
     }
@@ -308,17 +316,29 @@ void BufferManager::releasePage(int page_id, int policy) {
     Frame* frame = getFrame(page_id);
 
     if(frame){
+        if(frame->dirty) {
+            //preguntar si deseo guardar la pag
+            int guardar = 0;
+            std::cout<<"Desea guardar los cambios de la pag " << frame->page->page_id << "?\n";
+            std::cin >> guardar;
+            if(guardar) {
+                writePageToDisk(frame->page);
+            }else {
+                frame->dirty = false;
+            }
+
+        }
         unpinPage(page_id, policy, frame->dirty);
-        } else {
-            unpinPage(page_id, policy, false);
-         }    
+    } else {
+        unpinPage(page_id, policy, false);
+    }
 }
 
 
 // imprime cada frame y el id de la página que contiene
 void BufferManager::showFrames(int policy) {
-    auto frames = bufferManager->frames;
-    int clock_hand = bufferManager->clock_hand;
+    auto frames = bufferPool->frames;
+    int clock_hand = bufferPool->clock_hand;
     // imprime cada frame y el id de la página que contiene
     std::cout << "############################################\n";
     for (auto& frame : frames) {
@@ -335,7 +355,7 @@ void BufferManager::showFrames(int policy) {
             std::cout << std::setw(4)<< frame->pinned << "  ";
             if(policy==1||policy==2){
                 std::cout << "RProiority: " ;
-                auto replacement_queue = bufferManager->replacement_queue;
+                auto replacement_queue = bufferPool->replacement_queue;
                 int pos = 0;
                 for(auto it = replacement_queue.begin(); it != replacement_queue.end(); ++it, ++pos){
                     if((*it)->frame_id == frame->frame_id){

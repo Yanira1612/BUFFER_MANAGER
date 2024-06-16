@@ -20,7 +20,7 @@ private:
 
     int globalCounter = 0;
 
-    BufferPool* bufferManager;
+    BufferPool* bufferPool;
 
     // Obtiene un frame libre cuando el frame no tiene una página cargada en el puntero page
     Frame* getFreeFrame() ;
