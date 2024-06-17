@@ -3,9 +3,7 @@
 #include <iomanip>
 #include <fstream>
 #include <iostream>
-#include <unistd.h>
 
-// Yanira
 
 // Obtiene un frame libre cuando el frame no tiene una página cargada en el puntero page
 Frame* BufferManager::getFreeFrame() {
@@ -85,42 +83,35 @@ Frame* BufferManager::chooseVictimFrame(int policy) {
     auto& replacement_queue = bufferPool->replacement_queue;
 
     if (policy == CLOCK) {
-        while (true) {
-            Frame* frame = frames[clock_hand];
+    while (true) {
+        Frame* frame = frames[clock_hand];
 
-            // Considerar solo frames que no están pinneados
-            if (frame->page && frame->pin_count == 0 && frame->pinned == false) {
-                if (frame->reference_bit) {
-                    frame->reference_bit = false;
-                } else {
-                    clock_hand = (clock_hand + 1) % size;
-                    return frame;
-                }
-            }
-
-            clock_hand = (clock_hand + 1) % size;
-
-            if (clock_hand == 0) {
-                    bool all_pinned = true;
-                    for (const auto& f : frames) {
-                        if (f->page && f->pin_count == 0 && frame->pinned == false) {
-                            all_pinned = false;
-                            if (frame->reference_bit) {
-                                frame->reference_bit = false;
-                            } else {
-                                clock_hand = (clock_hand + 1) % size;
-                                return frame;
-                            }
-                            all_pinned = false;
-                            break;
-                        }
-                    }
-                    if (all_pinned) {
-                        return nullptr;
-                    }
+        // Considerar solo frames que no están pinneados
+        if (frame->page && frame->pin_count == 0 && frame->pinned == false) {
+            if (frame->reference_bit) {
+                frame->reference_bit = false;
+            } else {
+                clock_hand = (clock_hand + 1) % size;
+                return frame;
             }
         }
-    }
+        
+        clock_hand = (clock_hand + 1) % size;
+
+                    if (clock_hand == 0) {
+                bool all_pinned = true;
+                for (const auto& f : frames) {
+                    if (f->page && f->pin_count == 0) {
+                        all_pinned = false;
+                        break;
+                    }
+                }
+                if (all_pinned) {
+                    return nullptr;
+                }
+            }
+    }    
+}
 
     else{
         // usando una función lambda para ordenar la lista de frames por last_used en orden descendente
@@ -188,6 +179,7 @@ BufferManager::~BufferManager() {
 }
 
 // pinPage() busca una página y la fija, si no está en el buffer pool, la carga
+/*
 Frame* BufferManager::pinPage(int block_id,int policy) {
     auto& page_table = bufferPool->page_table;
     // compara si la página está en el buffer pool
@@ -203,10 +195,55 @@ Frame* BufferManager::pinPage(int block_id,int policy) {
     } else {
         return loadPage(block_id,policy);
     }
+}*/
+Frame* BufferManager::pinPage(int block_id, int policy) {
+    auto& page_table = bufferPool->page_table;
+
+    if (page_table.find(block_id) != page_table.end()) {
+        Frame* frame = page_table[block_id];
+        frame->pin_count++;
+        frame->last_used = getCurrentTime();
+        frame->reference_bit = true; // Set reference bit
+        std::cout << "Pinned página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << std::endl;
+      //  frame->request_queue.push(Request(0, block_id)); // Agregar solicitud de lectura a la cola
+        return frame;
+    } else {
+        return loadPage(block_id, policy);
+    }
 }
 
 
 // remueve el Pin de la página y se puede marcar como sucia si dirty = true
+void BufferManager::unpinPage(int page_id, int policy, bool dirty) {
+    auto page_table = bufferPool->page_table;
+
+    if (page_table.find(page_id) != page_table.end()) {
+        Frame* frame = page_table[page_id];
+        if (frame->pin_count > 0) {
+            frame->pin_count--;
+        } else {
+            std::cout << "Esta página ya está liberada" << std::endl;
+        }
+        frame->dirty = dirty;
+        std::cout << "Unpinned página " << page_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << ". Dirty: " << frame->dirty << std::endl;
+        if (frame->pin_count == 0) {
+            // Liberar la solicitud pendiente de la cola
+            if (!frame->request_queue.empty()) {
+                frame->request_queue.pop();
+            }
+
+            bufferPool->replacement_queue.push_back(frame);
+            if (policy == LRU) {
+                // Ordenar por last_used en orden ascendente para LRU
+                bufferPool->replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used < b->last_used; });
+            } else if (policy == MRU) {
+                // Ordenar por last_used en orden descendente para MRU
+                bufferPool->replacement_queue.sort([](Frame* a, Frame* b) { return a->last_used > b->last_used; });
+            }
+        }
+    }
+}
+/*
 void BufferManager::unpinPage(int page_id, int policy,  bool dirty ) {
     auto page_table = bufferPool->page_table;
     auto& replacement_queue = bufferPool->replacement_queue;
@@ -230,7 +267,7 @@ void BufferManager::unpinPage(int page_id, int policy,  bool dirty ) {
             }
         }
     }
-}
+}*/
 
 // carga una página en el buffer pool
 // con un page_id y un bloque de datos
@@ -259,6 +296,29 @@ Frame* BufferManager::loadPage(int block_id,int policy) {
     return frame;
 }
 
+//verifica si hay otro de escritura
+bool hasWriteRequest(Frame* frame) {
+    bool foundWriteRequest = false;
+
+    // Creamos una cola temporal para preservar la original
+    std::queue<Request> tempQueue = frame->request_queue;
+    tempQueue.pop();
+    // Iteramos sobre la cola temporal
+    while (!tempQueue.empty()) {
+        Request req = tempQueue.front();
+        tempQueue.pop(); // Sacamos el request de la cola temporal
+
+        // Verificamos si el request es de escritura
+        if (req.operation == 1) {
+            foundWriteRequest = true;
+            break;
+        }
+    }
+
+    return foundWriteRequest;
+}
+
+/*
 Frame* BufferManager::requestPage(int block_id,int policy) {
 
         Frame* mainFrame = this->pinPage(block_id, policy); // solicita una página
@@ -271,12 +331,12 @@ Frame* BufferManager::requestPage(int block_id,int policy) {
         if (mainFrame->dirty == false) {
             // mainFrame->showPage();
             // modificar la data
-            // std::cout << "Desea modificar la data? (1: si, 0: no): ";
+            std::cout << "Desea modificar la data? (1: si, 0: no): ";
             int mod;
             std::cin >> mod;
             if (mod == 1) {
                 std::string data;
-                // std::cout << "Ingrese la nueva data: ";
+                std::cout << "Ingrese la nueva data: ";
                 // cin de línea entera
                 std::cin.ignore();
                 std::getline(std::cin, data);
@@ -291,6 +351,39 @@ Frame* BufferManager::requestPage(int block_id,int policy) {
         }
         return mainFrame;
     }
+*/
+Frame* BufferManager::requestPage(int block_id, int policy) {
+    Frame* mainFrame = this->pinPage(block_id, policy); // Solicita una página
+
+    if (mainFrame == nullptr) {
+        std::cout << "No se pudo cargar la página\n";
+        return nullptr;
+    }
+
+    // Modificar la data o leer según la solicitud
+        std::cout << "Lectura(0) o escritura(1)? ";
+        int mod;
+        std::cin >> mod;
+
+    if (mainFrame->dirty == false) {
+        if (mod == 1) {
+            std::string data;
+            std::cout << "Ingrese la nueva data: ";
+            std::cin.ignore();
+            std::getline(std::cin, data);
+            mainFrame->page->data = data;
+            mainFrame->dirty = true;
+          //mainFrame->request_queue.push(Request(1, block_id)); // Agregar solicitud de escritura a la cola
+        } else {
+            std::cout << "Data: \n" << mainFrame->page->data << std::endl;
+          //  mainFrame->request_queue.push(Request(0, block_id)); // Agregar solicitud de escritura a la cola
+        }
+    } else {
+        std::cout << "No se puede solicitar la página" << std::endl;
+    }
+    mainFrame->request_queue.push(Request(mod, block_id));
+    return mainFrame;
+}
 
 bool BufferManager::pinned(int page_id) {
     Frame* frame=getFrame(page_id);
@@ -311,6 +404,7 @@ bool BufferManager::unpinned(int page_id) {
     return false;
 }
 
+/*
 void BufferManager::releasePage(int page_id, int policy) {
 
     Frame* frame = getFrame(page_id);
@@ -332,7 +426,52 @@ void BufferManager::releasePage(int page_id, int policy) {
     } else {
         unpinPage(page_id, policy, false);
     }
+}*/
+void BufferManager::releasePage(int page_id, int policy) {
+    Frame* frame = getFrame(page_id);
+    std::queue<Request> tempQueue = frame->request_queue;
+
+    if (frame) {
+        if (frame->request_queue.front().operation==1) {
+            // Preguntar si se desea guardar la página
+            int guardar = 0;
+            std::cout << "¿Desea guardar los cambios de la página " << frame->page->page_id << "?\n";
+            std::cin >> guardar;
+            if (guardar) {
+                writePageToDisk(frame->page);
+            } else {
+                frame->dirty = false;
+            }
+         //   tempQueue.pop();
+            //pide nueva data al siguiete proceso de elctura
+            if(hasWriteRequest(frame)){
+                std::string data;
+                std::cout << "Ingrese la nueva data para el siguiente proceso: ";
+                std::cin.ignore();
+                std::getline(std::cin, data);
+                frame->page->data = data;
+                frame->dirty = true;
+            }
+        }
+
+        // Mostrar información del request antes de liberar la página
+        if (!frame->request_queue.empty()) {
+            Request req = frame->request_queue.front();
+            std::cout << "Liberando página " << page_id << " asociada al request: ";
+            if (req.operation == 0) {
+                std::cout << "Lectura";
+            } else {
+                std::cout << "Escritura";
+            }
+            std::cout << " del bloque " << req.block_id << std::endl;
+            frame->request_queue.pop(); // Eliminar el request de la cola
+        }
+        unpinPage(page_id, policy, frame->dirty);
+    } else {
+        unpinPage(page_id, policy, false);
+    }
 }
+
 
 
 // imprime cada frame y el id de la página que contiene
