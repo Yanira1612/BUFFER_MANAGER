@@ -1,10 +1,18 @@
 #ifndef FRAME_H
 #define FRAME_H
 #include <iostream>
+#include <queue>
+
 
 #include "Page.h"
 #include <chrono>
 
+struct Request {
+    int operation; // 0 para lectura, 1 para escritura
+    int block_id;
+
+    Request(int op, int id) : operation(op), block_id(id) {}
+};
 // Clase Frame: Representa un frame en el buffer pool, que puede contener una página.
 class Frame {
 public:
@@ -16,6 +24,8 @@ public:
     int pin_count;         // contador de fijaciones de la página
     std::time_t last_used; // hora de la última fijación para LRU
     int counter;
+
+    std::queue<Request> request_queue;
 
     Frame(int id) : frame_id(id), page(nullptr), reference_bit(false) , pinned(false) {
         dirty = false;
