@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iostream>
 
+// Yanira
 
 // Obtiene un frame libre cuando el frame no tiene una página cargada en el puntero page
 Frame* BufferManager::getFreeFrame() {
@@ -98,10 +99,10 @@ Frame* BufferManager::chooseVictimFrame(int policy) {
         
         clock_hand = (clock_hand + 1) % size;
 
-                    if (clock_hand == 0) {
+                if (clock_hand == 0) {
                 bool all_pinned = true;
                 for (const auto& f : frames) {
-                    if (f->page && f->pin_count == 0) {
+                    if (f->page && f->pin_count == 0 && f->pinned == 0) {
                         all_pinned = false;
                         break;
                     }
@@ -204,7 +205,7 @@ Frame* BufferManager::pinPage(int block_id, int policy) {
         frame->pin_count++;
         frame->last_used = getCurrentTime();
         frame->reference_bit = true; // Set reference bit
-        std::cout << "Pinned página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << std::endl;
+        std::cout << "Subiendo página " << block_id << " en el frame " << frame->frame_id << ". Pin count: " << frame->pin_count << std::endl;
       //  frame->request_queue.push(Request(0, block_id)); // Agregar solicitud de lectura a la cola
         return frame;
     } else {
@@ -444,14 +445,14 @@ void BufferManager::releasePage(int page_id, int policy) {
             }
          //   tempQueue.pop();
             //pide nueva data al siguiete proceso de elctura
-            if(hasWriteRequest(frame)){
+          /*  if(hasWriteRequest(frame)){
                 std::string data;
                 std::cout << "Ingrese la nueva data para el siguiente proceso: ";
                 std::cin.ignore();
                 std::getline(std::cin, data);
                 frame->page->data = data;
                 frame->dirty = true;
-            }
+            }*/
         }
 
         // Mostrar información del request antes de liberar la página
